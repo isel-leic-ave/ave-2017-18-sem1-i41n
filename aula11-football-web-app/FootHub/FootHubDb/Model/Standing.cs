@@ -3,7 +3,7 @@
     public class Standing
     {
         public string TeamName { get; set; }
-        public int Goals { get; set; }
-        public int PlayedGames { get; set; }
+        public int Points { get; set; }
+        public int Position { get; set; }
     }
 }

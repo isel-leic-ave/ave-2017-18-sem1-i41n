@@ -1,12 +1,13 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.Net;
+using System.Text;
 
 namespace FootHubDb
 {
     public class FootWebClient
     {
-        private readonly WebClient client = new WebClient();
+        private readonly WebClient client = new WebClient() { Encoding = Encoding.UTF8 };
 
         public League[] GetLeagues() {
             string body = client.DownloadString("http://api.football-data.org/v1/soccerseasons/");
@@ -25,7 +26,8 @@ namespace FootHubDb
         }
 
         public Team GetTeam(int teamId) {
-            return null;
+            // TO DO !!!!!
+            throw new NotImplementedException();
         }
     }
 }
