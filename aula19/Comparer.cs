@@ -69,7 +69,7 @@ class EqualityComparer: IEqualityComparer {
             }
         }
     }
-    public bool Equals(object x, object y) {
+    public new bool Equals(object x, object y) {
         if(x.GetType() != klass || y.GetType() != klass) return false;
         foreach(IGetter g in getters) {
             if(g.GetValue(x).Equals(g.GetValue(y)) == false)
