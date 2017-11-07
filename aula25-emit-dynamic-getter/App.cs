@@ -70,7 +70,7 @@ public class Student {
 }
 
 public class Classroom {
-    [Loggable] Student [] stds;
+    [Loggable] public Student [] stds;
     public Classroom(params Student[] stds) {
         this.stds = stds;
     }

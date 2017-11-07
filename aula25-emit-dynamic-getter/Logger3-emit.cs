@@ -14,24 +14,6 @@ interface IGetter {
     string GetValueAsString(object target);
 }
 
-/**
- *  For properties of array type.
- */
-class GetterArray : IGetter {
-    FieldInfo p;
-    public GetterArray(FieldInfo p) {
-        this.p = p;
-    }
-    public string GetValueAsString(object target) {
-        object[] arr = (object[]) p.GetValue(target);
-        string str = p.Name + ": [" ;
-        for(int i = 0; i < arr.Length; i++) {
-            str += Logger.ObjFieldsToString(arr[i]) + ", ";
-        }
-        return str + "]";
-    }
-}
-
 public abstract class AbstractGetterObject : IGetter {
     public abstract string FieldName();
     public abstract object FieldValue(object target);
@@ -42,6 +24,22 @@ public abstract class AbstractGetterObject : IGetter {
     }
 }
 
+public abstract class AbstractGetterArray : IGetter
+{
+    public abstract string FieldName();
+    public abstract object[] FieldValue(object target);
+
+    public string GetValueAsString(object target)
+    {
+        object[] arr = FieldValue(target);
+        string str = FieldName() + ": [";
+        for (int i = 0; i < arr.Length; i++)
+        {
+            str += Logger.ObjFieldsToString(arr[i]) + ", ";
+        }
+        return str + "]";
+    }
+}
 
 public class Logger {
     public static void Fields (object obj) {
@@ -60,7 +58,7 @@ public class Logger {
             object[] attrs = p.GetCustomAttributes(typeof(LoggableAttribute), true);
             if(attrs.Length == 0) continue;
             if(p.FieldType.IsArray)
-                res.Add(new GetterArray(p));
+                res.Add(EmitGetterArray(p, klass));
             else
                 res.Add(EmitGetterObject(p, klass));
         }
@@ -68,7 +66,17 @@ public class Logger {
         return res;    
     }
 
-    private static IGetter EmitGetterObject(FieldInfo p, Type klass) {
+    private static IGetter EmitGetterObject(FieldInfo p, Type klass)
+    {
+        return (IGetter)EmitGetter(p, klass, typeof(AbstractGetterObject));
+    }
+
+    private static IGetter EmitGetterArray(FieldInfo p, Type klass)
+    {
+        return (IGetter)EmitGetter(p, klass, typeof(AbstractGetterArray));
+    }
+
+    private static IGetter EmitGetter(FieldInfo p, Type klass, Type abstractGetterType) {
         AssemblyName aName = new AssemblyName("DynamicGetter" + p.Name + "From" + klass.Name);
         AssemblyBuilder ab =
             AppDomain.CurrentDomain.DefineDynamicAssembly(
@@ -83,7 +91,7 @@ public class Logger {
         TypeBuilder tb = mb.DefineType(
             "Getter" + p.Name + "From" + klass.Name,
              TypeAttributes.Public,
-             typeof(AbstractGetterObject));
+             abstractGetterType);
 
         MethodBuilder methodBuilder = tb.DefineMethod(
                 "FieldName",
@@ -98,14 +106,15 @@ public class Logger {
         methodBuilder = tb.DefineMethod(
                 "FieldValue",
                 MethodAttributes.Public | MethodAttributes.Virtual | MethodAttributes.ReuseSlot,
-                typeof(object), // Return Type 
+                abstractGetterType.GetMethod("FieldValue").ReturnType, // Return Type 
                 new Type[] { typeof(object)} // Types of arguments
             );
         il = methodBuilder.GetILGenerator();
         il.Emit(OpCodes.Ldarg_1);          // push target
         il.Emit(OpCodes.Castclass, klass); // castclass
         il.Emit(OpCodes.Ldfld, p);         // ldfld 
-        il.Emit(OpCodes.Box, p.FieldType); // box
+        if(p.FieldType.IsValueType)
+            il.Emit(OpCodes.Box, p.FieldType); // box
         il.Emit(OpCodes.Ret);              // ret
 
 
