@@ -3,8 +3,11 @@ using System.Collections;
 using System.Text;
 using System.IO;
 
-
-class App {
+/**
+ * static <=> abstract + sealed
+          <=> não pode ser instanciada + não pode ser extendida
+ */ 
+static class App {
 
     static IList Lines(string path)
     {
@@ -24,7 +27,7 @@ class App {
     delegate Object Mapper(Object s);
     delegate bool Predicate(Object s);
    
-    static IList Convert(IList src, Mapper func) {
+    static IList Convert(this IList src, Mapper func) {
         IList res = new ArrayList();
         foreach(Object item in src) {
             res.Add(func.Invoke(item));
@@ -32,7 +35,7 @@ class App {
         return res;
     }
        
-    static IList Filter(IList stds, Predicate test) {
+    static IList Filter(this IList stds, Predicate test) {
         IList res = new ArrayList();
         foreach(Object s in stds) {
             if(test.Invoke(s))
@@ -54,22 +57,19 @@ class App {
     }
      */
      
+    static void Print(String s) {
+        Console.WriteLine(s);
+    }
+    
     static void Main()
     {
-        IList names = 
-            Convert(
-                Filter(
-                    Filter(
-                        Convert(
-                            Lines("i41n.txt"),
-                            l => Student.Parse((String) l)),
-                        s => ((Student) s).nr > 38000), 
-                    s => ((Student) s).name.StartsWith("J")),
-                s => ((Student) s).name
-                );
+        IList names = Lines("i41n.txt")
+                        .Convert(l => { Print("Convert"); return Student.Parse((String) l); })
+                        .Filter(s => { Print("Filtering..."); return ((Student) s).nr > 38000; } )
+                        .Filter(s => { Print("Filtering..."); return ((Student) s).name.StartsWith("J"); } )
+                        .Convert(s => { Print("Convert"); return ((Student) s).name; } );
     
-        foreach(object l in names)
-            Console.WriteLine(l);
+        // foreach(object l in names) Console.WriteLine(l);
     }
 }
 
