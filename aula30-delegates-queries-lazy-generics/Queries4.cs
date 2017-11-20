@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Text;
 using System.IO;
 
@@ -9,10 +10,10 @@ using System.IO;
  */ 
 static class App {
 
-    static IList Lines(string path)
+    static IList<string> Lines(string path)
     {
         string line;
-        IList res = new ArrayList();
+        IList<String> res = new List<String>();
         
         using(StreamReader file = new StreamReader(path)) // <=> try-with resources do Java >= 7
         {
@@ -23,52 +24,59 @@ static class App {
         }
         return res;
     }
-   
-    delegate Object Mapper(Object s);
-    delegate bool Predicate(Object s);
-   
-    static IEnumerable Convert(this IEnumerable src, Mapper func) {
-        return new MapperEnumerator(src, func);
+      
+    static IEnumerable<R> Convert<T, R>(this IEnumerable<T> src, Func<T, R> func) {
+        return new MapperEnumerator<T, R>(src, func);
     }
        
-    static IEnumerable Filter(this IEnumerable src, Predicate test) {
-        return new FilterEnumerator(src, test);
+    static IEnumerable<T> Filter<T>(this IEnumerable<T> src, Predicate<T> test) {
+        return new FilterEnumerator<T>(src, test);
     }
     
-    class MapperEnumerator: IEnumerable, IEnumerator {
-        IEnumerable src; 
-        IEnumerator iter;
-        Mapper func; 
-        
-        public MapperEnumerator(IEnumerable src, Mapper f) {
+    class MapperEnumerator<T, R>: IEnumerable<R>, IEnumerator<R> {
+        IEnumerable<T> src; 
+        IEnumerator<T> iter;
+        Func<T, R> func; 
+        public MapperEnumerator(IEnumerable<T> src, Func<T, R> f) {
             this.src = src; this.func = f;
         }
-        public MapperEnumerator(IEnumerator iter, Mapper f) {
+        public MapperEnumerator(IEnumerator<T> iter, Func<T, R> f) {
             this.iter = iter; this.func = f;
         }
-        public IEnumerator GetEnumerator() {
-            return new MapperEnumerator(src.GetEnumerator(), func);
+        public IEnumerator<R> GetEnumerator() {
+            return new MapperEnumerator<T, R>(src.GetEnumerator(), func);
         }
+        IEnumerator IEnumerable.GetEnumerator() {
+            return this.GetEnumerator();
+        }     
         public bool MoveNext() { return iter.MoveNext(); }
-        public Object Current {
+        
+        public R Current {
             get { return func.Invoke(iter.Current); }
         }
+        object IEnumerator.Current {
+            get { return this.Current; }
+        }
         public void Reset() { iter.Reset(); }
+        public void Dispose() { iter.Dispose(); }
     }
     
-    class FilterEnumerator: IEnumerable, IEnumerator {
-        IEnumerable src; 
-        IEnumerator iter;
-        Predicate test; 
+    class FilterEnumerator<T>: IEnumerable<T>, IEnumerator<T> {
+        IEnumerable<T> src; 
+        IEnumerator<T> iter;
+        Predicate<T> test; 
         
-        public FilterEnumerator(IEnumerable src, Predicate test) {
+        public FilterEnumerator(IEnumerable<T> src, Predicate<T> test) {
             this.src = src; this.test = test;
         }
-        public FilterEnumerator(IEnumerator iter, Predicate test) {
+        public FilterEnumerator(IEnumerator<T> iter, Predicate<T> test) {
             this.iter = iter; this.test = test;
         }
-        public IEnumerator GetEnumerator() {
-            return new FilterEnumerator(src.GetEnumerator(), test);
+        public IEnumerator<T> GetEnumerator() {
+            return new FilterEnumerator<T>(src.GetEnumerator(), test);
+        }
+        IEnumerator IEnumerable.GetEnumerator() {
+            return this.GetEnumerator();
         }
         public bool MoveNext() { 
             while(iter.MoveNext())
@@ -76,10 +84,14 @@ static class App {
                     return true;
             return false; 
         }
-        public Object Current {
+        public T Current {
             get { return iter.Current; }
         }
+        Object IEnumerator.Current {
+            get { return this.Current; }
+        }
         public void Reset() { iter.Reset(); }
+        public void Dispose() { iter.Dispose(); }
     }
     
     /***********************************************
@@ -101,12 +113,12 @@ static class App {
     static void Main()
     {
         IEnumerable names = Lines("i41n.txt")
-                .Convert(l => { Print("Convert"); return Student.Parse((String) l); })
-                .Filter(s => { Print("Filtering..."); return ((Student) s).nr > 38000; } )
-                .Filter(s => { Print("Filtering..."); return ((Student) s).name.StartsWith("J"); } )
-                .Convert(s => { Print("Convert"); return ((Student) s).name; } );
+                .Convert(l => { Print("Convert"); return Student.Parse(l); })
+                .Filter(s => { Print("Filtering..."); return s.nr > 38000; } )
+                .Filter(s => { Print("Filtering..."); return s.name.StartsWith("J"); } )
+                .Convert(s => { Print("Convert"); return s.name; } );
     
-        // foreach(object l in names) Console.WriteLine(l);
+        foreach(object l in names) Console.WriteLine(l);
 
     }
 }
