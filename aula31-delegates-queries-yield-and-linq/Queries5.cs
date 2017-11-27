@@ -10,88 +10,29 @@ using System.IO;
  */ 
 static class App {
 
-    static IList<string> Lines(string path)
+    static IEnumerable<string> Lines(string path)
     {
         string line;
-        IList<String> res = new List<String>();
-        
         using(StreamReader file = new StreamReader(path)) // <=> try-with resources do Java >= 7
         {
             while ((line = file.ReadLine()) != null)
             {
-                res.Add(line);
+                yield return line;
             }
         }
-        return res;
     }
       
     static IEnumerable<R> Convert<T, R>(this IEnumerable<T> src, Func<T, R> func) {
-        return new MapperEnumerator<T, R>(src, func);
+        foreach(T item in src) {
+            yield return func.Invoke(item);
+        }    
     }
        
     static IEnumerable<T> Filter<T>(this IEnumerable<T> src, Predicate<T> test) {
-        return new FilterEnumerator<T>(src, test);
-    }
-    
-    class MapperEnumerator<T, R>: IEnumerable<R>, IEnumerator<R> {
-        IEnumerable<T> src; 
-        IEnumerator<T> iter;
-        Func<T, R> func; 
-        public MapperEnumerator(IEnumerable<T> src, Func<T, R> f) {
-            this.src = src; this.func = f;
+        foreach(T item in src) {
+            if(test.Invoke(item))
+                yield return item;
         }
-        public MapperEnumerator(IEnumerator<T> iter, Func<T, R> f) {
-            this.iter = iter; this.func = f;
-        }
-        public IEnumerator<R> GetEnumerator() {
-            return new MapperEnumerator<T, R>(src.GetEnumerator(), func);
-        }
-        IEnumerator IEnumerable.GetEnumerator() {
-            return this.GetEnumerator();
-        }     
-        public bool MoveNext() { return iter.MoveNext(); }
-        
-        public R Current {
-            get { return func.Invoke(iter.Current); }
-        }
-        object IEnumerator.Current {
-            get { return this.Current; }
-        }
-        public void Reset() { iter.Reset(); }
-        public void Dispose() { iter.Dispose(); }
-    }
-    
-    class FilterEnumerator<T>: IEnumerable<T>, IEnumerator<T> {
-        IEnumerable<T> src; 
-        IEnumerator<T> iter;
-        Predicate<T> test; 
-        
-        public FilterEnumerator(IEnumerable<T> src, Predicate<T> test) {
-            this.src = src; this.test = test;
-        }
-        public FilterEnumerator(IEnumerator<T> iter, Predicate<T> test) {
-            this.iter = iter; this.test = test;
-        }
-        public IEnumerator<T> GetEnumerator() {
-            return new FilterEnumerator<T>(src.GetEnumerator(), test);
-        }
-        IEnumerator IEnumerable.GetEnumerator() {
-            return this.GetEnumerator();
-        }
-        public bool MoveNext() { 
-            while(iter.MoveNext())
-                if(test.Invoke(iter.Current))
-                    return true;
-            return false; 
-        }
-        public T Current {
-            get { return iter.Current; }
-        }
-        Object IEnumerator.Current {
-            get { return this.Current; }
-        }
-        public void Reset() { iter.Reset(); }
-        public void Dispose() { iter.Dispose(); }
     }
     
     /***********************************************
