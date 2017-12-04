@@ -14,15 +14,19 @@ interface ILogger {
 }
 
 public abstract class AbstractLogger : ILogger {
-    public static string Format(string name, object val) {
-        return name + ": " + val + ", ";
+    private Logger logger;
+    
+    public AbstractLogger(Logger l) { logger = l; }
+
+    public string Format(string name, object val) {
+        return name + ": " + logger.ObjFieldsToString(val) + ", ";
     }
-    public static string Format(string name, object[] arr)
+    public string Format(string name, object[] arr)
     {
         string str = name + ": [";
         for (int i = 0; i < arr.Length; i++)
         {
-            str += Logger.ObjFieldsToString(arr[i]) + ", ";
+            str += logger.ObjFieldsToString(arr[i]) + ", ";
         }
         return str + "]";
     }
@@ -36,13 +40,13 @@ public class Logger {
     static readonly MethodInfo concat = typeof(String).GetMethod("Concat", new Type[] { typeof(string), typeof(string) });
 
 
-    public static void Fields (object obj) {
+    public void Fields (object obj) {
         Console.WriteLine("{0} => {1}", obj.GetType(), ObjFieldsToString(obj));
     }
     
-    static Dictionary<Type, ILogger> loggedTypes = new Dictionary<Type, ILogger>();
+    Dictionary<Type, ILogger> loggedTypes = new Dictionary<Type, ILogger>();
 
-    private static ILogger EmitLogger(Type klass) {
+    private ILogger EmitLogger(Type klass) {
         AssemblyName aName = new AssemblyName("DynamicLogger" + klass.Name);
         AssemblyBuilder ab =
             AppDomain.CurrentDomain.DefineDynamicAssembly(
@@ -58,7 +62,32 @@ public class Logger {
             "Logger" + klass.Name,
              TypeAttributes.Public,
              typeof(AbstractLogger));
+        
+        EmitCtor(klass, tb);
+        EmitLogMethod(klass, tb);
 
+        // Finish the type.
+        Type t = tb.CreateType();
+        ab.Save(aName.Name + ".dll");
+        return (ILogger) Activator.CreateInstance(t, new object[]{this});
+    }
+
+    public static void EmitCtor(Type klass, TypeBuilder tb) {
+        Type[] parameterTypes = { typeof(Logger) };
+        ConstructorBuilder ctor1 = tb.DefineConstructor(
+            MethodAttributes.Public, 
+            CallingConventions.Standard, 
+            parameterTypes);
+
+        ILGenerator ctor1IL = ctor1.GetILGenerator();
+        ctor1IL.Emit(OpCodes.Ldarg_0);
+        ctor1IL.Emit(OpCodes.Ldarg_1);
+        ctor1IL.Emit(OpCodes.Call, 
+            typeof(AbstractLogger).GetConstructor(parameterTypes));
+        ctor1IL.Emit(OpCodes.Ret);
+    }
+    
+    public static void EmitLogMethod(Type klass, TypeBuilder tb) {
         MethodBuilder methodBuilder = tb.DefineMethod(
                 "Log",
                 MethodAttributes.Public | MethodAttributes.Virtual | MethodAttributes.ReuseSlot,
@@ -81,6 +110,7 @@ public class Logger {
             object[] attrs = p.GetCustomAttributes(typeof(LoggableAttribute), true);
             if (attrs.Length == 0) continue;
 
+            il.Emit(OpCodes.Ldarg_0);          // push this
             il.Emit(OpCodes.Ldstr, p.Name);    // push on stack the field name
             il.Emit(OpCodes.Ldloc, target);    // ldloc target
             il.Emit(OpCodes.Ldfld, p);         // ldfld 
@@ -93,21 +123,32 @@ public class Logger {
             il.Emit(OpCodes.Call, concat);
         }
         il.Emit(OpCodes.Ret);              // ret
-
-        // Finish the type.
-        Type t = tb.CreateType();
-        ab.Save(aName.Name + ".dll");
-        return (ILogger) Activator.CreateInstance(t);
     }
-
-    public static string ObjFieldsToString(object obj) {
+    
+    public string ObjFieldsToString(object obj) {
         ILogger logger;
         Type klass = obj.GetType();
+        if(klass.IsPrimitive || klass == typeof(string))
+            return obj.ToString();
         if (!loggedTypes.TryGetValue(klass, out logger)){
             logger = EmitLogger(klass);
             loggedTypes.Add(klass, logger);
         }
         return logger.Log(obj);
     }
-
+    
+    public Logger For<T>(Func<T, string> formatter) {
+        Type t = typeof(T);
+        loggedTypes.Add(t, new LoggerFormatter<T>(formatter));
+        return this;
+    }
+    class LoggerFormatter<T> : ILogger{
+        Func<T, string> formatter;
+        public LoggerFormatter(Func<T, string> f) {
+            formatter = f;
+        }
+        public string Log(object o) {
+            return formatter((T) o);
+        }
+    }
 }
